@@ -11,7 +11,7 @@
 - 显示名「鱼的心情」→ **「大肥鱼的心情」**
 - 路由前缀 `/dsh-feiyu-mood` → **`/dsh-bigfish-mood`**，并收敛为 `lib/index.js` 里的单一常量 `ROUTE_PREFIX`
   （上游在 3 个文件 11 处硬编码，改一处漏十处）
-- 数据目录 `<DSH_HOME>/feiyu-mood/` → **`<DSH_HOME>/bigfish-mood/`**，不再和原版抢同一份数据
+- 数据目录 `<DSH_HOME>/feiyu-mood/` → **`<DSH_HOME>/bigfish-mood/`**，跟上游彻底分开、两个目录互不影响
 - 侧栏图标与主面板的 id 用 **`dafeiyu-mood`**，与「大肥鱼记忆管理」(`dafeiyu-memory`) 并列
 
 ### 入口：设置页 → 侧边栏
