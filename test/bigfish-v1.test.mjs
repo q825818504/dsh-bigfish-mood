@@ -120,6 +120,23 @@ test('state is stored under <DSH_HOME>/bigfish-mood, not feiyu-mood', () => {
   assert.ok(!existsSync(join(home, 'feiyu-mood')), '不该创建 feiyu-mood 目录')
 })
 
+test('apply() creates a baseline state.json so the path is predictable from boot', () => {
+  helpers.复位挂载()
+  // 先清干净
+  rmSync(join(home, 'bigfish-mood', 'state.json'), { force: true })
+  const h = fakeHost()
+  apply(h.ctx)
+  assert.ok(existsSync(helpers.库路径()), '启动后 state.json 必须存在')
+  const raw = JSON.parse(readFileSync(helpers.库路径(), 'utf8'))
+  assert.equal(raw.version, 2)
+  const keys = Object.keys(raw.moods)
+  assert.deepEqual(keys, ['--D-~5927~80A5~9C7C~5F00~53D1--'], '默认份的键就是工作区目录名')
+  assert.equal(raw.moods[keys[0]].mood, 70, '基线 70')
+  assert.deepEqual(raw.moods[keys[0]].timeline, [], '一开始 timeline 是空的')
+  assert.ok(raw.moods[keys[0]].dims && typeof raw.moods[keys[0]].dims === 'object', 'dims 必须在')
+  helpers.复位挂载()
+})
+
 test('route prefix is the bigfish one', () => {
   assert.equal(P, '/dsh-bigfish-mood')
 })
