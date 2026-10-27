@@ -1,0 +1,62 @@
+{
+  "name": "dsh-bigfish-mood",
+  "version": "1.0.0",
+  "description": "给 AI 伙伴一个会自己判断、你看得见的心情：每轮聊完自动判断涨跌，侧边栏面板看数值 + 情绪 + 时间线；心情怎么告诉 TA 和可信度门槛都能在面板里改。",
+  "license": "MIT",
+  "author": "Alime",
+  "contributors": [
+    "Yuuyuko-uu (upstream dsh-feiyu-mood, https://github.com/Yuuyuko-uu)"
+  ],
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "mood",
+    "ai-companion"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/q825818504/dsh-bigfish-mood.git"
+  },
+  "homepage": "https://github.com/q825818504/dsh-bigfish-mood#readme",
+  "bugs": {
+    "url": "https://github.com/q825818504/dsh-bigfish-mood/issues"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

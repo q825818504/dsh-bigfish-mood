@@ -1,0 +1,21 @@
+dsh-bigfish-mood
+================
+
+本仓库派生自 Yuuyuko-uu 的 dsh-feiyu-mood v0.7.6：
+
+    https://github.com/Yuuyuko-uu/dsh-feiyu-mood
+    commit 4e21024445127b2218a2a3bfa5bdb2f067e3890c
+    Copyright (c) 2026 Yuuyuko-uu
+    MIT License
+
+原始代码的著作权归原作者所有。本仓库在其基础上做了以下改动：
+
+  · 插件身份改名（包名 dsh-bigfish-mood、路由前缀 /dsh-bigfish-mood、数据目录 bigfish-mood）
+  · 入口从 settings.section 改为 sidebar.panellist + main 侧边栏面板
+  · 默认绑定工作区（上游默认为空，开箱即用不生效）
+  · 新增进程内防重复挂载守卫
+  · timeline 增加落盘上限与接口返回上限（结构不变，at/mood/dims 保留）
+  · 修复：衰减不守 moodFloor、读盘时误改代词、更新命令写死 --profile
+  · 清理死代码（份键 / noteDecay 的 base 形参 / moodLine 的 shellIdx 形参）
+
+原 MIT 许可证文本见同目录 LICENSE（Copyright (c) 2026 Alime，含上游版权声明）。
