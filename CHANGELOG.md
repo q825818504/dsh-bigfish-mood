@@ -24,7 +24,7 @@
 ### 开箱即用
 
 - 默认模式 `session` → **`workspace`**
-- 默认绑定工作区 **`--D-~5927~80A5~9C7C~5F00~53D1--`**（= `D:\大肥鱼开发`，标题「大肥鱼记忆开发」）
+- 默认绑定一个具体工作区（目录名写在 `lib/index.js` 的 `DEFAULT_WORKSPACE` 常量里）
 - 可用环境变量 `DSH_BIGFISH_MOOD_WORKSPACE` 覆盖，或在面板里改绑
 - 上游默认 `targetSession` 为空 ⇒ 谁都没绑 ⇒ 永远不判断、timeline 恒为空；现在装完聊两句就有数据
 - **启动即落一份基线 `state.json`**：别的插件（记忆星图）按固定路径读它，
@@ -47,6 +47,10 @@
 - 🐛 **`timeline` 无上限增长**：落盘保留最近 2000 条（`DSH_BIGFISH_MOOD_TIMELINE_MAX` 可调），
   `/state` 默认只返回最近 200 条（`DSH_BIGFISH_MOOD_STATE_TIMELINE` 可调，`?timeline=all` 要全量）。
   **`at` / `mood` / `dims` 三个字段一个没动** —— 记忆星图按这三个字段给历史记忆着色。
+- 🐛 **`plugin:*` 来源被当成「人在说话」判心情**：机器来源前缀补 `plugin-` / `plugin:`。
+  实测日志里出现过 `plugin:hindsight` —— 那是记忆检索注入的**旧对话**，不是用户当下发言，
+  拿它判心情会静默污染心情数据。**兜底逻辑不变**：真没见过的来源仍按「人在说话」处理
+  （这条是 0.7.1 用 QQ 桥踩出来的，不能一起改掉）。
 
 ### 清理
 
@@ -58,8 +62,9 @@
 
 - `tests/decay.test.mjs` 6/6（沿用，`decay()` 新增第 5 参 `floor` 有默认值，旧调用不受影响）
 - `test/stale-judgments.test.mjs` 19/19（适配新路由前缀与新存储目录，显式钉死 `模式: 'session'`）
-- `test/bigfish-v1.test.mjs` **15/15（新增）**：防重复挂载、默认工作区、存储目录迁移、
-  timeline 契约与上限、`/state` 返回量、`decay` 守下限、`normState` 不误改代词、工作区模式端到端判断
+- `test/bigfish-v1.test.mjs` **22/22（新增）**：防重复挂载、默认工作区、存储目录迁移、
+  timeline 契约与上限、`/state` 返回量、`decay` 守下限、`normState` 不误改代词、
+  工作区模式端到端判断、来源分类（`plugin:*` 跳过 / 未知来源放行，两个方向）
 
 ---
 

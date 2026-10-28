@@ -28,13 +28,13 @@ test.after(() => rmSync(home, { recursive: true, force: true }))
 
 const flush = async () => { for (let i = 0; i < 12; i++) await new Promise(r => setImmediate(r)) }
 
-/** 最小假宿主：够 apply() 跑完即可 */
-function fakeHost() {
+/** 最小假宿主：够 apply() 跑完即可。传 agents 可以模拟"有会话在线" */
+function fakeHost(agents = []) {
   const routes = new Map()
   const effects = []
   const intervals = []
   const ctx = {
-    agents: { list: () => [], roots: () => [] },
+    agents: { list: () => agents, roots: () => agents },
     effect(fn) { const off = fn(); if (typeof off === 'function') effects.push(off) },
     interval(fn) { intervals.push(fn); return () => {} },
     on: () => () => {},
@@ -42,6 +42,16 @@ function fakeHost() {
     llm: { listProviders: () => [], listModels: async () => [], async *stream() {} },
   }
   return { ctx, routes, effects, intervals }
+}
+
+/** 造一个只有 snapshotEvents 的假 session */
+function mkSession(id, events) {
+  return { id, snapshotEvents: () => events }
+}
+
+/** 一条 user/message 事件 */
+function userEvent(text, kind) {
+  return { type: 'user/message', payload: { text, source: { kind } } }
 }
 
 function req(routes, path, body) {
@@ -98,9 +108,13 @@ test('default config binds the 大肥鱼记忆开发 workspace in workspace mode
   assert.equal(cfg.slots[0].label, '大肥鱼记忆开发')
 })
 
-test('workspace dir name encoding round-trips for the target path', () => {
-  assert.equal(helpers.工作区目录名('D:\\大肥鱼开发'), '--D-~5927~80A5~9C7C~5F00~53D1--')
-  assert.equal(helpers.工作区目录名('D:/大肥鱼开发'), '--D-~5927~80A5~9C7C~5F00~53D1--')
+test('workspace dir name encoding: separators collapse, non-ASCII becomes ~XXXX', () => {
+  // 用中性示例路径，不写本机目录（这是公开仓库）
+  assert.equal(helpers.工作区目录名('D:\\projects\\fish'), '--D-projects-fish--')
+  assert.equal(helpers.工作区目录名('D:/projects/fish'), '--D-projects-fish--', '正斜杠与反斜杠等价')
+  assert.equal(helpers.工作区目录名('C:\\work\\demo'), '--C-work-demo--')
+  // 非 ASCII 按码位编码成 ~XXXX，这样目录名跨机器可复制
+  assert.equal(helpers.工作区目录名('D:\\项目'), '--D-~9879~76EE--')
 })
 
 test('an explicit config keeps its own mode instead of the default', () => {
@@ -298,4 +312,95 @@ test('workspace mode judges a real turn and writes a timeline entry', async () =
 
   helpers.复位挂载()
   rmSync(join(home, 'sessions'), { recursive: true, force: true })
+})
+
+// ── 8. 来源分类：plugin:* 是机器注入，不是「人在说话」 ──────────────────────
+//
+// 背景：实测日志里出现过
+//   第一次见到的消息来源「plugin:hindsight」—— 先按「她在说话」处理（心情照判）
+// Hindsight 是记忆检索注入，注入的是**检索回来的旧对话**，不是用户当下发言。
+// 拿它判心情，判出来的是旧内容的情绪，会静默污染心情数据。
+// 下面两个方向都要有：plugin:* 必须挡掉，未知来源必须仍然放行（否则会误伤未知网桥）。
+
+test('plugin:hindsight 被认作机器来源，这一轮不判心情', () => {
+  const s = mkSession('s1', [userEvent('记忆里检索到的旧对话', 'plugin:hindsight')])
+  assert.equal(mod.lastUserTurnOf(s), null, 'plugin:hindsight 不该被当成人说的话')
+})
+
+test('任意 plugin: / plugin- 前缀都按机器来源处理', () => {
+  for (const kind of ['plugin:memory', 'plugin:hindsight', 'plugin:anything', 'plugin-some-bridge']) {
+    const s = mkSession('s1', [userEvent('x', kind)])
+    assert.equal(mod.lastUserTurnOf(s), null, kind + ' 应被跳过')
+  }
+})
+
+test('已知外网桥 qq 仍按「人在说话」处理', () => {
+  const s = mkSession('s1', [userEvent('在吗', 'qq')])
+  const r = mod.lastUserTurnOf(s)
+  assert.ok(r, 'qq 不该被跳过')
+  assert.equal(r.text, '在吗')
+  assert.equal(r.sourceKind, 'user', '外网桥归一成人说话')
+})
+
+test('完全没见过的来源仍按「人在说话」处理（兜底没被破坏）', () => {
+  for (const kind of ['wechat-bridge', 'some-new-im', 'telegram']) {
+    const s = mkSession('s1', [userEvent('新的桥', kind)])
+    const r = mod.lastUserTurnOf(s)
+    assert.ok(r, kind + ' 这种没见过的来源应放行（兜底逻辑）')
+    assert.equal(r.sourceKind, 'user')
+  }
+})
+
+test('机器注入在前、真人话在后 → 取真人那句', () => {
+  const s = mkSession('s1', [
+    userEvent('真人说的', 'user'),
+    userEvent('检索注入的旧内容', 'plugin:hindsight'),
+  ])
+  const r = mod.lastUserTurnOf(s)
+  assert.ok(r)
+  assert.equal(r.text, '真人说的', '应该跳过注入、往前取到真人那条')
+})
+
+test('集成：只有 plugin:hindsight 的一轮不会发起模型调用', async () => {
+  mkdirSync(join(home, 'bigfish-mood'), { recursive: true })
+  writeFileSync(join(home, 'bigfish-mood', 'config.json'),
+    JSON.stringify({ 模式: 'session', slots: [{ id: 'k1', sessions: ['s1'] }] }))
+  rmSync(join(home, 'bigfish-mood', 'state.json'), { force: true })
+
+  const judged = []
+  const events = new Map()
+  const agent = {
+    session: mkSession('s1', [
+      userEvent('记忆里检索到的旧对话', 'plugin:hindsight'),
+      { type: 'assistant/message', payload: { text: '嗯，我记得。' } },
+    ]),
+    options: { provider: 'fake', model: 'fake' },
+    ctx: {
+      on(n, f) { events.set(n, f); return () => events.delete(n) },
+      systemPrompt: { context: () => () => {} },
+    },
+  }
+
+  helpers.复位挂载()
+  const h = fakeHost([agent])
+  h.ctx.llm.stream = async function* () {
+    judged.push(1)
+    yield { type: 'text-delta', text: '{"moodDelta":9,"dims":{"happy":6},"reason":"不该走到这","confidence":90}' }
+  }
+  apply(h.ctx)
+
+  assert.ok(events.get('agent/turn-stopping'), '会话应该被挂上')
+  events.get('agent/turn-stopping')()
+  await flush()
+
+  assert.equal(judged.length, 0, 'plugin:hindsight 的轮次不该调用模型')
+  // apply() 启动时会落一份基线 state.json（mood=基线、timeline=[]），所以这里不能断言 moods 为空，
+  // 要断言的是「没有新增任何时间线」。
+  const slot = helpers.读库().moods.k1
+  assert.ok(slot, '基线状态应该存在')
+  assert.equal(slot.timeline.length, 0, '不该写入任何时间线')
+  assert.equal(slot.mood, 70, '心情应该还停在基线')
+
+  helpers.复位挂载()
+  rmSync(join(home, 'bigfish-mood', 'config.json'), { force: true })
 })
